@@ -1,0 +1,25 @@
+{
+    "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.0",
+    "body": [
+      {
+        "type": "Input.Text",
+        "id": "name",
+        "value": "",
+        "placeholder":"Username"
+      },
+      {
+        "type": "Input.Text",
+        "id": "token",
+        "value": "",
+        "placeholder":"API Token"
+      }
+    ],
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "Submit"
+      }
+    ]
+  }
