@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const restify = require('restify');
-const readline = require('readline');
 const { EchoBot } = require('./bot');
 const ENV_FILE = path.join(__dirname, '.env');
 const { BotFrameworkAdapter } = require('botbuilder');
@@ -15,6 +14,8 @@ const myBot = new EchoBot(conversationReferences);
 // Create HTTP server
 const server = restify.createServer();
 const adapter = new BotFrameworkAdapter({});
+
+//Listens to port 3978
 server.listen(process.env.port || process.env.PORT || 3978, () => {
   
 });
@@ -31,9 +32,9 @@ const onTurnErrorHandler = async (context, error) => {
     await context.sendActivity('The bot encountered an error or bug.');
     await context.sendActivity('To continue to run this bot, please fix the bot source code.');
 };
-
 adapter.onTurnError = onTurnErrorHandler;
 
+//API for messages
 server.post('/api/messages', (req, res) => {
     adapter.processActivity(req, res, async (context) => {
         // Route to main dialog.
@@ -41,6 +42,7 @@ server.post('/api/messages', (req, res) => {
     });
 });
 
+//Captures email and parses information
 server.use(restify.plugins.bodyParser());
 
 server.post('/api/data', async (req, res) => {
@@ -48,6 +50,7 @@ server.post('/api/data', async (req, res) => {
         await adapter.continueConversation(conversationReference, async turnContext => {
             await turnContext.sendActivity(req.body);
 
+            //Formats the email and puts into text d
             let bodyText = req.body;
             let jobname = "";
             let joburl = "";
@@ -67,7 +70,7 @@ server.post('/api/data', async (req, res) => {
     res.end();
 });
   
-  
+//Adds links to link
 function linkFile(linkText){
     fs.appendFile('link.txt', "\n - " + linkText + "\n", (err)=>{
         if(err) throw(err);
