@@ -27,6 +27,7 @@ class EchoBot extends ActivityHandler {
             var lineRemove = 0;
             var amtRem = 0;
             var adapter = context.adapter;
+            var inject = true;
            
             data = fs.readFileSync('link.txt', "utf8");
 
@@ -82,42 +83,68 @@ class EchoBot extends ActivityHandler {
                 }
             }else{
                 //card submitted for curl post
+                var userinput = context.activity.value.name;
+                var usertoken = context.activity.value.token;
+                var symbols = ['-', '$', '@', '?', '\\', '\'', '\"', '!', '#', '%', '^', '&', '*', '(', ')', '=', '+', ':', ';', '.', ','];
+
                 joburl = fs.readFileSync('job_next.txt', 'utf8');
                 jobname = joburl.substring(0, joburl.indexOf("^")-2);
-                await exec(`curl -X POST -u ${context.activity.value.name}:${context.activity.value.token} ${joburl.substring(joburl.indexOf("^")+1, joburl.length)}build/`, async (error, stdout, stderr) => {
-                    if (stderr) {
-                        if(stdout.indexOf("head") != -1){
-                            for (const conversationReference of Object.values(conversationReferences)) {
-                                await adapter.continueConversation(conversationReference, async turnContext => {
-                                    await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
-                                    fs.writeFileSync('job_next.txt', "", 'utf8');
-                                });
-                            }
-                        }else{
-                            editeddata = data.split('\n');
-                            lineRemove = lineFinder(editeddata, jobname);
-                            while(amtRem < 4){
-                                editeddata.splice(lineRemove, 1);
-                                amtRem++;
-                            }
-                                                            
-                            for(var i = 0; i < editeddata.length - 1; i++){
-                                newdata = newdata + editeddata[i] + "\n";
-                            }
-                                    
-                            //puts new list into file
-                            fs.writeFileSync('link.txt', newdata, 'utf-8');
+                joburl = joburl.substring(joburl.indexOf("^")+1, joburl.length)
                 
-                            fs.writeFileSync('job_next.txt', "", 'utf8');
+                for(var i = 0; i < symbols.length; i++){
+                    if(userinput.indexOf(symbols[i]) != -1){
+                        inject = false;
+                        i += 20;
+                    }
+                }
 
-                            for (const conversationReference of Object.values(conversationReferences)) {
-                                await adapter.continueConversation(conversationReference, async turnContext => {
-                                    await turnContext.sendActivity(`${joburl.substring(0, joburl.indexOf("^")-1)} has been built.`);
-                                });
+                for(var j = 0; j < symbols.length; j++){
+                    if(usertoken.indexOf(symbols[j]) != -1){
+                        inject = false;
+                        i += 20;
+                    }
+                }
+
+                if(inject){
+                    await context.sendActivity("Processing request. Please wait...");
+                    await exec(`curl -X POST -u ${userinput}:${usertoken} ${joburl}build/`, async (error, stdout, stderr) => {
+                        if (stderr) {
+                            if(stdout.indexOf("head") != -1 || error != null){
+                                for (const conversationReference of Object.values(conversationReferences)) {
+                                    await adapter.continueConversation(conversationReference, async turnContext => {
+                                        await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
+                                        fs.writeFileSync('job_next.txt', "", 'utf8');
+                                    });
+                                }
+                            }else{
+                                editeddata = data.split('\n');
+                                lineRemove = lineFinder(editeddata, jobname);
+                                while(amtRem < 4){
+                                    editeddata.splice(lineRemove, 1);
+                                    amtRem++;
+                                }
+                                                                
+                                for(var i = 0; i < editeddata.length - 1; i++){
+                                    newdata = newdata + editeddata[i] + "\n";
+                                }
+                                        
+                                //puts new list into file
+                                fs.writeFileSync('link.txt', newdata, 'utf-8');
+                    
+                                fs.writeFileSync('job_next.txt', "", 'utf8');
+
+                                for (const conversationReference of Object.values(conversationReferences)) {
+                                    await adapter.continueConversation(conversationReference, async turnContext => {
+                                        await turnContext.sendActivity(`${jobname} has been built.`);
+                                    });
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }else{
+                    await context.sendActivity("Illegal Character Usage.");
+                    fs.writeFileSync('job_next.txt', "", 'utf8');
+                }
 
                 await next();
             }
