@@ -1,5 +1,6 @@
 const fs = require('fs');
 const Card = require('./Card.json');
+const emtpyCard = require('./Card.json');
 const { exec } = require("child_process");
 const { ActivityHandler, MessageFactory, TurnContext, CardFactory } = require('botbuilder');
 
@@ -50,24 +51,25 @@ class EchoBot extends ActivityHandler {
                     jobname = messageText.substring(8, messageText.length);
 
                     //checks for job name
+                    var data2 = data.substring(data.indexOf(jobname), data.length);
 
-                    if(data.indexOf(jobname) != -1 && data.substring(data.indexOf(jobname), data.indexOf("JOB URL:")-5) === jobname){
-                        joburl = data.substring(data.indexOf("JOB URL:", data.indexOf(jobname)) + 9, data.length);
+                    if(data.indexOf(jobname) != -1 && data2.substring(0, data2.indexOf("JOB URL:")-5) === jobname){
+                        joburl = data2.substring(data2.indexOf("JOB URL:") + 9, data2.length);
 
                         //Checks if its the last job on the list
                         if(joburl.indexOf("JOB NAME:") != -1){
-                            joburl = joburl.substring(0, joburl.indexOf("JOB NAME:") - 6);
+                            joburl = joburl.substring(0, joburl.indexOf("JOB NAME:") - 5);
                         }
-                        
-                        //gets the job name and URL for text file
-                        joburl = joburl.replace("\n", "");
-                        fs.writeFileSync('job_next.txt', jobname + "  ^ " + joburl, 'utf8');
 
                         //sends card for user to sign into
                         await context.sendActivity({
                             jobtext:`${jobname}`,
                             attachments: [CardFactory.adaptiveCard(Card)]
                         });
+
+                        //gets the job name and URL for text file
+                        joburl = joburl.replace("\n", "");
+                        fs.writeFileSync('job_next.txt', jobname + "  ^ " + joburl, 'utf8');
         
                         await next();
 
@@ -85,6 +87,7 @@ class EchoBot extends ActivityHandler {
                 //card submitted for curl post
                 var userinput = context.activity.value.name;
                 var usertoken = context.activity.value.token;
+
                 var symbols = ['-', '$', '@', '?', '\\', '\'', '\"', '!', '#', '%', '^', '&', '*', '(', ')', '=', '+', ':', ';', '.', ','];
 
                 joburl = fs.readFileSync('job_next.txt', 'utf8');
