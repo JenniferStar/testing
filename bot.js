@@ -47,9 +47,9 @@ class EchoBot extends ActivityHandler {
                     await next();
 
                 //gets approve message
-                }else if(messageText.substring(0, 7) === "approve"){
-                    jobname = messageText.substring(8, messageText.length);
-
+                }else if(messageText.substring(0, 5) === "build"){
+                    jobname = messageText.substring(6, messageText.length);
+                    console.log(jobname);
                     //checks for job name
                     var data2 = data.substring(data.indexOf(jobname), data.length);
 
@@ -78,6 +78,32 @@ class EchoBot extends ActivityHandler {
                         await context.sendActivity(`'${jobname}' could not be found.`);
                         await next();
                     }
+
+                }else if(messageText.substring(0, 6) === "status"){
+                    joburl = messageText.substring(7, messageText.length);
+                    await exec(`curl ${joburl}lastBuild/api/json`, async (error, stdout, stderr) => {
+                        for (const conversationReference of Object.values(conversationReferences)) {
+                            await adapter.continueConversation(conversationReference, async turnContext => {
+                                console.log(stdout);
+                                if(stdout.indexOf("Started by user") != -1 || stdout.indexOf("userId") != -1 || stdout.indexOf("result") != -1 || stdout.indexOf("timestamp") != -1){
+ 
+                                    var timedid = new Date(parseInt(stdout.substring(stdout.indexOf("\"timestamp\"") + 12, stdout.indexOf("\"url\"") - 1))).toLocaleString();
+                                    var timetake = (parseInt(stdout.substring(stdout.indexOf("\"duration\"") + 11, stdout.indexOf("\"estimatedDuration\"") - 1)))/1000;
+
+                                    await turnContext.sendActivity("Job Name: " + stdout.substring(stdout.indexOf("\"fullDisplayName\"") + 19, stdout.indexOf("\"id\"") - 2) + "\n\n" +
+                                                                   "Started by: " + stdout.substring(stdout.indexOf("\"Started by user") + 16, stdout.indexOf("\"userId\"") - 2) + "\n\n" +
+                                                                   "User ID: "+ stdout.substring(stdout.indexOf("\"userId\"") + 10, stdout.indexOf("\"userName\"") - 2) + "\n\n" +
+                                                                   "Timestamp: "+ timedid + "\n\n" +
+                                                                   "Duration: " + timetake + " sec\n\n" +
+                                                                   "Build Status: " + stdout.substring(stdout.indexOf("\"result\"") + 10, stdout.indexOf("\"timestamp\"") - 2));
+                                }else{
+                                    await turnContext.sendActivity("Status not found.");
+                                }
+                            });
+                        }
+                    });
+                    await next();
+
                 }else{
                     //not a command
                     await context.sendActivity(`'${ messageText }' is not a command, use command list to see all commands.`);
