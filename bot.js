@@ -120,35 +120,34 @@ class EchoBot extends ActivityHandler {
                 }
 
                 joburl = fs.readFileSync('job_next.txt', 'utf8');
+                if(inject){
+                    if(joburl.indexOf("^") == -1){
+                        await exec(`curl -u ${userinput}:${usertoken} ${joburl}lastBuild/api/json`, async (error, stdout, stderr) => {
+                            for (const conversationReference of Object.values(conversationReferences)) {
+                                await adapter.continueConversation(conversationReference, async turnContext => {
+                                    if(stdout.indexOf("Started by user") == -1 || stdout.indexOf("userId") == -1 || stdout.indexOf("result") == -1 || stdout.indexOf("timestamp") == -1){
+                                        await turnContext.sendActivity("Status not found.");
 
-                if(joburl.indexOf("^") == -1){
-                    await exec(`curl -u ${userinput}:${usertoken} ${joburl}lastBuild/api/json`, async (error, stdout, stderr) => {
-                        for (const conversationReference of Object.values(conversationReferences)) {
-                            await adapter.continueConversation(conversationReference, async turnContext => {
-                                if(stdout.indexOf("Started by user") == -1 || stdout.indexOf("userId") == -1 || stdout.indexOf("result") == -1 || stdout.indexOf("timestamp") == -1){
-                                    await turnContext.sendActivity("Status not found.");
+                                    }else{
+                                        var timedid = new Date(parseInt(stdout.substring(stdout.indexOf("\"timestamp\"") + 12, stdout.indexOf("\"url\"") - 1))).toLocaleString();
+                                        var timetake = (parseInt(stdout.substring(stdout.indexOf("\"duration\"") + 11, stdout.indexOf("\"estimatedDuration\"") - 1)))/1000;
 
-                                }else{
-                                    var timedid = new Date(parseInt(stdout.substring(stdout.indexOf("\"timestamp\"") + 12, stdout.indexOf("\"url\"") - 1))).toLocaleString();
-                                    var timetake = (parseInt(stdout.substring(stdout.indexOf("\"duration\"") + 11, stdout.indexOf("\"estimatedDuration\"") - 1)))/1000;
-
-                                    await turnContext.sendActivity("Job Name: " + stdout.substring(stdout.indexOf("\"fullDisplayName\"") + 19, stdout.indexOf("\"id\"") - 2) + "\n\n" +
-                                                                   "Started by: " + stdout.substring(stdout.indexOf("\"Started by user") + 16, stdout.indexOf("\"userId\"") - 2) + "\n\n" +
-                                                                   "User ID: "+ stdout.substring(stdout.indexOf("\"userId\"") + 10, stdout.indexOf("\"userName\"") - 2) + "\n\n" +
-                                                                   "Timestamp: "+ timedid + "\n\n" +
-                                                                   "Duration: " + timetake + " sec\n\n" +
-                                                                   "Build Status: " + stdout.substring(stdout.indexOf("\"result\"") + 10, stdout.indexOf("\"timestamp\"") - 2));
-                                }
-                            });
-                        }
-                    });
-                    fs.writeFileSync('job_next.txt', "", 'utf8');
+                                        await turnContext.sendActivity("Job Name: " + stdout.substring(stdout.indexOf("\"fullDisplayName\"") + 19, stdout.indexOf("\"id\"") - 2) + "\n\n" +
+                                                                    "Started by: " + stdout.substring(stdout.indexOf("\"Started by user") + 16, stdout.indexOf("\"userId\"") - 2) + "\n\n" +
+                                                                    "User ID: "+ stdout.substring(stdout.indexOf("\"userId\"") + 10, stdout.indexOf("\"userName\"") - 2) + "\n\n" +
+                                                                    "Timestamp: "+ timedid + "\n\n" +
+                                                                    "Duration: " + timetake + " sec\n\n" +
+                                                                    "Build Status: " + stdout.substring(stdout.indexOf("\"result\"") + 10, stdout.indexOf("\"timestamp\"") - 2));
+                                    }
+                                });
+                            }
+                        });
+                        fs.writeFileSync('job_next.txt', "", 'utf8');
                     
-                }else{
-                    jobname = joburl.substring(0, joburl.indexOf("^") - 1);
-                    joburl = joburl.substring(joburl.indexOf("^") + 1, joburl.length);
+                    }else{
+                        jobname = joburl.substring(0, joburl.indexOf("^") - 1);
+                        joburl = joburl.substring(joburl.indexOf("^") + 1, joburl.length);
 
-                    if(inject){
                         await context.sendActivity("Processing request. Please wait...");
                         await exec(`curl -X POST -u ${userinput}:${usertoken} ${joburl}build/`, async (error, stdout, stderr) => {
                             if (stderr) {
@@ -184,13 +183,13 @@ class EchoBot extends ActivityHandler {
                                 }
                             }
                         });
-                    }else{
-                        await context.sendActivity("Illegal Character Usage.");
-                        fs.writeFileSync('job_next.txt', "", 'utf8');
                     }
+                }else{
+                    await context.sendActivity("Illegal Character Usage.");
+                    fs.writeFileSync('job_next.txt', "", 'utf8');
+                }
 
                     await next();
-                }
             }
         });
 
