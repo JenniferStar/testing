@@ -84,6 +84,7 @@ class EchoBot extends ActivityHandler {
                         await next();
                     }
 
+                //gets the status of job send card for info.
                 }else if(messageText.substring(0, 6) === "status" || messageText.substring(0, 6) === "Status"){
                     joburl = messageText.substring(7, messageText.length);
                     fs.writeFileSync('job_next.txt',joburl, 'utf8');
@@ -98,7 +99,7 @@ class EchoBot extends ActivityHandler {
                     await next();
                 }
             }else{
-                //card submitted for curl post
+                //card submitted for curl post either status or build
                 var userinput = context.activity.value.name;
                 var usertoken = context.activity.value.token;
 
