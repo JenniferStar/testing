@@ -3,6 +3,8 @@ const Card = require('./Card.json');
 const emtpyCard = require('./Card.json');
 const { exec } = require("child_process");
 const { ActivityHandler, MessageFactory, TurnContext, CardFactory } = require('botbuilder');
+var XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+const { htmlToText } = require('html-to-text');
 
 class EchoBot extends ActivityHandler {
     constructor(conversationReferences) {
@@ -35,26 +37,30 @@ class EchoBot extends ActivityHandler {
             //Checks for if the message is from the card or command
             if(context.activity.hasOwnProperty('text')){
                 messageText = context.activity.text;
-
+                messageText = messageText.replace(" ", "");
+                messageText = messageText.replace("\n", "");
+                messageText = messageText.replace("\r", "");
+                messageText = messageText.replace(/<[^>]+>/g, '');
+                messageText = htmlToText(messageText);
                 //Shows all active job
-                if(messageText === "show list" || messageText === "Show list" ){
+                if(messageText === "showlist" || messageText === "Showlist" ){
                     await context.sendActivity(data);
                     await next();
 
                 //shows all commands
-                }else if(messageText === "command list" || messageText === "Command list"){
+                }else if(messageText === "commandlist" || messageText === "Commandlist"){
                     await context.sendActivity("Command list:\n" + " - clear list\n" + " - show list\n" + " - build (job name)\n" + " - status (job link)");
                     await next();
 
                 //clears the list of links 
-                }else if(messageText === "clear list" || messageText === "Clear list"){
+                }else if(messageText === "clearlist" || messageText === "Clearlist"){
                     fs.writeFileSync('link.txt', "Links To Be Approved:\n", 'utf-8');
                     await context.sendActivity("List has been cleared.");
                     await next();
 
                 //gets approve message
                 }else if(messageText.substring(0, 5) === "build" || messageText.substring(0, 5) === "Build"){
-                    jobname = messageText.substring(6, messageText.length);
+                    jobname = messageText.substring(5, messageText.length);
                     
                     //checks for job name
                     var data2 = data.substring(data.indexOf(jobname), data.length);
@@ -86,7 +92,7 @@ class EchoBot extends ActivityHandler {
 
                 //gets the status of job send card for info.
                 }else if(messageText.substring(0, 6) === "status" || messageText.substring(0, 6) === "Status"){
-                    joburl = messageText.substring(7, messageText.length);
+                    joburl = messageText.substring(6, messageText.length);
                     fs.writeFileSync('job_next.txt',joburl, 'utf8');
                     await context.sendActivity({
                         attachments: [CardFactory.adaptiveCard(Card)]
@@ -122,67 +128,86 @@ class EchoBot extends ActivityHandler {
                 joburl = fs.readFileSync('job_next.txt', 'utf8');
                 if(inject){
                     if(joburl.indexOf("^") == -1){
-                        await exec(`curl -u ${userinput}:${usertoken} ${joburl}lastBuild/api/json`, async (error, stdout, stderr) => {
-                            for (const conversationReference of Object.values(conversationReferences)) {
-                                await adapter.continueConversation(conversationReference, async turnContext => {
-                                    if(stdout.indexOf("Started by user") == -1 || stdout.indexOf("userId") == -1 || stdout.indexOf("result") == -1 || stdout.indexOf("timestamp") == -1){
-                                        await turnContext.sendActivity("Status not found.");
+                        joburl = joburl.trim();    
+                        var url = `${joburl}lastBuild/api/json`;
 
-                                    }else{
-                                        var timedid = new Date(parseInt(stdout.substring(stdout.indexOf("\"timestamp\"") + 12, stdout.indexOf("\"url\"") - 1))).toLocaleString();
-                                        var timetake = (parseInt(stdout.substring(stdout.indexOf("\"duration\"") + 11, stdout.indexOf("\"estimatedDuration\"") - 1)))/1000;
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("GET", url, true, userinput, usertoken);
+                        xhr.withCredentials = true;
+                        xhr.onreadystatechange = async function () {
+                            if (xhr.readyState === 4) {
+                                for (const conversationReference of Object.values(conversationReferences)) {
+                                    await adapter.continueConversation(conversationReference, async turnContext => {
+                                        var stdout = xhr.responseText;
+                                        if(stdout.indexOf("Started by user") == -1 || stdout.indexOf("userId") == -1 || stdout.indexOf("result") == -1 || stdout.indexOf("timestamp") == -1){
+                                            await turnContext.sendActivity("Status not found.");
+                                        }else{
+                                            var timedid = new Date(parseInt(stdout.substring(stdout.indexOf("\"timestamp\"") + 12, stdout.indexOf("\"url\"") - 1))).toLocaleString();
+                                            var timetake = (parseInt(stdout.substring(stdout.indexOf("\"duration\"") + 11, stdout.indexOf("\"estimatedDuration\"") - 1)))/1000;
 
-                                        await turnContext.sendActivity("Job Name: " + stdout.substring(stdout.indexOf("\"fullDisplayName\"") + 19, stdout.indexOf("\"id\"") - 2) + "\n\n" +
-                                                                    "Started by: " + stdout.substring(stdout.indexOf("\"Started by user") + 16, stdout.indexOf("\"userId\"") - 2) + "\n\n" +
-                                                                    "User ID: "+ stdout.substring(stdout.indexOf("\"userId\"") + 10, stdout.indexOf("\"userName\"") - 2) + "\n\n" +
-                                                                    "Timestamp: "+ timedid + "\n\n" +
-                                                                    "Duration: " + timetake + " sec\n\n" +
-                                                                    "Build Status: " + stdout.substring(stdout.indexOf("\"result\"") + 10, stdout.indexOf("\"timestamp\"") - 2));
-                                    }
-                                });
+                                            await turnContext.sendActivity("Job Name: " + stdout.substring(stdout.indexOf("\"fullDisplayName\"") + 19, stdout.indexOf("\"id\"") - 2) + "\n\n" +
+                                                                        "Started by: " + stdout.substring(stdout.indexOf("\"Started by user") + 16, stdout.indexOf("\"userId\"") - 2) + "\n\n" +
+                                                                        "User ID: "+ stdout.substring(stdout.indexOf("\"userId\"") + 10, stdout.indexOf("\"userName\"") - 2) + "\n\n" +
+                                                                        "Timestamp: "+ timedid + "\n\n" +
+                                                                        "Duration: " + timetake + " sec\n\n" +
+                                                                        "Build Status: " + stdout.substring(stdout.indexOf("\"result\"") + 10, stdout.indexOf("\"timestamp\"") - 2));
+                                        }
+                                    });
+                                }
                             }
-                        });
+                        };
+                        
+                        xhr.send();
                         fs.writeFileSync('job_next.txt', "", 'utf8');
                     
                     }else{
                         jobname = joburl.substring(0, joburl.indexOf("^") - 1);
                         joburl = joburl.substring(joburl.indexOf("^") + 1, joburl.length);
-
-                        await context.sendActivity("Processing request. Please wait...");
-                        await exec(`curl -X POST -u ${userinput}:${usertoken} ${joburl}build/`, async (error, stdout, stderr) => {
-                            if (stderr) {
-                                if(stdout.indexOf("head") != -1 || error != null){
-                                    for (const conversationReference of Object.values(conversationReferences)) {
-                                        await adapter.continueConversation(conversationReference, async turnContext => {
-                                            await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
-                                            fs.writeFileSync('job_next.txt', "", 'utf8');
-                                        });
-                                    }
-                                }else{
-                                    editeddata = data.split('\n');
-                                    lineRemove = lineFinder(editeddata, jobname);
-                                    while(amtRem < 4){
-                                        editeddata.splice(lineRemove, 1);
-                                        amtRem++;
-                                    }
-                                                                    
-                                    for(var i = 0; i < editeddata.length - 1; i++){
-                                        newdata = newdata + editeddata[i] + "\n";
-                                    }
-                                            
-                                    //puts new list into file
-                                    fs.writeFileSync('link.txt', newdata, 'utf-8');
                         
-                                    fs.writeFileSync('job_next.txt', "", 'utf8');
+                        var url = `${joburl}build/`;
 
-                                    for (const conversationReference of Object.values(conversationReferences)) {
-                                        await adapter.continueConversation(conversationReference, async turnContext => {
-                                            await turnContext.sendActivity(`${jobname} has been built.`);
-                                        });
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("POST", url, true, userinput, usertoken);
+                        xhr.withCredentials = true;
+                        xhr.onreadystatechange = async function () {
+                            if (xhr.readyState === 4) {
+                                for (const conversationReference of Object.values(conversationReferences)) {
+                                    await adapter.continueConversation(conversationReference, async turnContext => {
+                                        if(xhr.status != "201" && xhr.status != "200"){
+                                            for (const conversationReference of Object.values(conversationReferences)) {
+                                                await adapter.continueConversation(conversationReference, async turnContext => {
+                                                    await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
+                                                    fs.writeFileSync('job_next.txt', "", 'utf8');
+                                                });
+                                            }
+                                        }else{
+                                            editeddata = data.split('\n');
+                                            lineRemove = lineFinder(editeddata, jobname);
+                                            while(amtRem < 4){
+                                                editeddata.splice(lineRemove, 1);
+                                                amtRem++;
+                                            }
+                                                                            
+                                            for(var i = 0; i < editeddata.length - 1; i++){
+                                                newdata = newdata + editeddata[i] + "\n";
+                                            }
+                                                    
+                                            //puts new list into file
+                                            fs.writeFileSync('link.txt', newdata, 'utf-8');
+                                
+                                            fs.writeFileSync('job_next.txt', "", 'utf8');
+
+                                            for (const conversationReference of Object.values(conversationReferences)) {
+                                                await adapter.continueConversation(conversationReference, async turnContext => {
+                                                    await turnContext.sendActivity(`${jobname} has been built.`);
+                                                });
+                                        }
                                     }
+                                    });
                                 }
                             }
-                        });
+                        };
+                        xhr.send();
                     }
                 }else{
                     await context.sendActivity("Illegal Character Usage.");
