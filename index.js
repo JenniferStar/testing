@@ -56,18 +56,21 @@ server.post('/api/data', async (req, res) => {
             let bodyText = req.body;
             let jobname = "";
             let joburl = "";
+            let jobnumber = "";
 
             var j = 0;
             var data = "";
             var array = []; 
             var foundname = false;
 
-            jobname = bodyText.substring(bodyText.indexOf("JOB NAME:")+10, bodyText.indexOf("JOB URL:"));
+            jobname = bodyText.substring(bodyText.indexOf("JOB NAME:")+13, bodyText.indexOf("JOB URL:"));
             jobname = jobname.replace(/\n/g, '');
-            jobname = jobname.substring(3, jobname.length);
 
             joburl = bodyText.substring(bodyText.indexOf("JOB URL:")+9, bodyText.length);
             joburl = joburl.replace(/\n/g, '');
+
+            jobnumber = bodyText.substring(bodyText.indexOf("BUILD Number")+18, bodyText.indexOf("JOB NAME:"));
+            jobnumber = jobnumber.replace(/\n/g, '');
 
             //gets links and check for dups.
             data = fs.readFileSync('link.txt', "utf8");
@@ -85,7 +88,7 @@ server.post('/api/data', async (req, res) => {
                 await turnContext.sendActivity("Job sent already on list.");
             }else{
                 await turnContext.sendActivity(req.body);
-                linkFile("JOB NAME: " + jobname + "\n\n   JOB URL: "+ joburl);
+                linkFile("JOB NAME: " + jobname + "\n\n   BUILD NUMBER: " + jobnumber + "\n\n   JOB URL: "+ joburl);
             }
         });
     }
