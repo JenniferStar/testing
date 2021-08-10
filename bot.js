@@ -25,7 +25,6 @@ class EchoBot extends ActivityHandler {
             var joburl = "";
             var newdata = ""; 
             var jobname = ""; 
-            var jobnumber = "";
             var editeddata = "";
             var messageText = "";
             var lineRemove = 0;
@@ -43,16 +42,9 @@ class EchoBot extends ActivityHandler {
                 messageText = messageText.replace("\r", "");
                 messageText = messageText.replace(/<[^>]+>/g, '');
                 messageText = htmlToText(messageText);
-
                 //Shows all active job
                 if(messageText === "showlist" || messageText === "Showlist" ){
-                    setTimeout(async function(){
-                        for (const conversationReference of Object.values(conversationReferences)) {
-                            await adapter.continueConversation(conversationReference, async turnContext => {
-                                await turnContext.sendActivity(data); 
-                            });
-                        }}, 5000);
-                    
+                    await context.sendActivity(data);
                     await next();
 
                 //shows all commands
@@ -66,28 +58,15 @@ class EchoBot extends ActivityHandler {
                     await context.sendActivity("List has been cleared.");
                     await next();
 
-                //builds job with url
-                }else if(messageText.substring(0, 5) === "build" || messageText.substring(0, 5) === "Build"){
-                    joburl = messageText.substring(5, messageText.length);
-                    
-                    fs.writeFileSync('job_next.txt',joburl + "{}", 'utf8');
-
-                    await context.sendActivity({
-                        attachments: [CardFactory.adaptiveCard(Card)]
-                    });
-                    await next();
-                    
-                    
                 //gets approve message
-                }else if(messageText.substring(0, 7) === "approve" || messageText.substring(0, 5) === "Approve"){
-                    jobname = messageText.substring(7, messageText.length);
+                }else if(messageText.substring(0, 5) === "build" || messageText.substring(0, 5) === "Build"){
+                    jobname = messageText.substring(5, messageText.length);
                     
                     //checks for job name
                     var data2 = data.substring(data.indexOf(jobname), data.length);
-                    if(data.indexOf(jobname) != -1 && data2.substring(0, data2.indexOf("BUILD NUMBER") - 5) === jobname){
-                        joburl = data2.substring(data2.indexOf("JOB URL:") + 9, data2.length);
 
-                        jobnumber = data2.substring(data2.indexOf("BUILD NUMBER") + 14, data2.indexOf("JOB URL:") - 5);
+                    if(data.indexOf(jobname) != -1 && data2.substring(0, data2.indexOf("JOB URL:")-5) === jobname){
+                        joburl = data2.substring(data2.indexOf("JOB URL:") + 9, data2.length);
 
                         //Checks if its the last job on the list
                         if(joburl.indexOf("JOB NAME:") != -1){
@@ -101,7 +80,7 @@ class EchoBot extends ActivityHandler {
 
                         //gets the job name and URL for text file
                         joburl = joburl.replace("\n", "");
-                        fs.writeFileSync('job_next.txt', jobname + " ^ " + joburl + " ! " + jobnumber, 'utf8');
+                        fs.writeFileSync('job_next.txt', jobname + " ^ " + joburl, 'utf8');
         
                         await next();
 
@@ -110,13 +89,11 @@ class EchoBot extends ActivityHandler {
                         await context.sendActivity(`'${jobname}' could not be found.`);
                         await next();
                     }
-                
 
                 //gets the status of job send card for info.
                 }else if(messageText.substring(0, 6) === "status" || messageText.substring(0, 6) === "Status"){
                     joburl = messageText.substring(6, messageText.length);
                     fs.writeFileSync('job_next.txt',joburl, 'utf8');
-
                     await context.sendActivity({
                         attachments: [CardFactory.adaptiveCard(Card)]
                     });
@@ -128,7 +105,7 @@ class EchoBot extends ActivityHandler {
                     await next();
                 }
             }else{
-                //card submitted for post either status, build, or approve
+                //card submitted for curl post either status or build
                 var userinput = context.activity.value.name;
                 var usertoken = context.activity.value.token;
 
@@ -149,16 +126,11 @@ class EchoBot extends ActivityHandler {
                 }
 
                 joburl = fs.readFileSync('job_next.txt', 'utf8');
-
-                //checks for any bad characters
                 if(inject){
-
-                    //build has {}, approve has ^ !, and status is plain link
-                    if(joburl.indexOf("^") == -1 && joburl.indexOf("{}") == -1){
+                    if(joburl.indexOf("^") == -1){
                         joburl = joburl.trim();    
                         var url = `${joburl}lastBuild/api/json`;
 
-                        //gets last build status
                         var xhr = new XMLHttpRequest();
                         xhr.open("GET", url, true, userinput, usertoken);
                         xhr.withCredentials = true;
@@ -188,108 +160,53 @@ class EchoBot extends ActivityHandler {
                         xhr.send();
                         fs.writeFileSync('job_next.txt', "", 'utf8');
                     
-                    //sends build request
-                    }else if(joburl.indexOf("{}") != -1){
-                        joburl = joburl.trim(); 
-                        joburl = joburl.substring(0, joburl.length - 2);
-                        var url = `${joburl}build`;
-
-                        var xhr = new XMLHttpRequest();
-                        xhr.open("POST", url, true, userinput, usertoken);
-                        xhr.withCredentials = true;
-                        xhr.onreadystatechange = async function () {
-                            if (xhr.readyState === 4) {
-                                if(xhr.status != "201" && xhr.status != "200"){
-                                    for (const conversationReference of Object.values(conversationReferences)) {
-                                        await adapter.continueConversation(conversationReference, async turnContext => {
-                                            await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
-                                            fs.writeFileSync('job_next.txt', "", 'utf8');
-                                        });
-                                    }
-                                }else{
-                                    for (const conversationReference of Object.values(conversationReferences)) {
-                                        await adapter.continueConversation(conversationReference, async turnContext => {
-                                            await turnContext.sendActivity(`Build request has been sent.`);
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                        xhr.send();
-                    
-                    //approve build
                     }else{
                         jobname = joburl.substring(0, joburl.indexOf("^") - 1);
-                        jobnumber = joburl.substring(joburl.indexOf("!") + 2, joburl.length);
-                        joburl = joburl.substring(joburl.indexOf("^") + 2, joburl.indexOf("!") - 1);
+                        joburl = joburl.substring(joburl.indexOf("^") + 1, joburl.length);
                         
-                        //gets input id
-                        var url = `${joburl}${jobnumber}/wfapi/pendingInputActions/`;
+                        var url = `${joburl}build/`;
 
                         var xhr = new XMLHttpRequest();
                         xhr.open("POST", url, true, userinput, usertoken);
                         xhr.withCredentials = true;
                         xhr.onreadystatechange = async function () {
                             if (xhr.readyState === 4) {
-                                if(xhr.status != "201" && xhr.status != "200"){
-                                    for (const conversationReference of Object.values(conversationReferences)) {
-                                        await adapter.continueConversation(conversationReference, async turnContext => {
-                                            await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
+                                for (const conversationReference of Object.values(conversationReferences)) {
+                                    await adapter.continueConversation(conversationReference, async turnContext => {
+                                        if(xhr.status != "201" && xhr.status != "200"){
+                                            for (const conversationReference of Object.values(conversationReferences)) {
+                                                await adapter.continueConversation(conversationReference, async turnContext => {
+                                                    await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
+                                                    fs.writeFileSync('job_next.txt', "", 'utf8');
+                                                });
+                                            }
+                                        }else{
+                                            editeddata = data.split('\n');
+                                            lineRemove = lineFinder(editeddata, jobname);
+                                            while(amtRem < 4){
+                                                editeddata.splice(lineRemove, 1);
+                                                amtRem++;
+                                            }
+                                                                            
+                                            for(var i = 0; i < editeddata.length - 1; i++){
+                                                newdata = newdata + editeddata[i] + "\n";
+                                            }
+                                                    
+                                            //puts new list into file
+                                            fs.writeFileSync('link.txt', newdata, 'utf-8');
+                                
                                             fs.writeFileSync('job_next.txt', "", 'utf8');
-                                        });
-                                    }
-                                }else{
-                                    var stdout = xhr.responseText;
-                                    var id = "";
 
-                                    //gets id from output and passes proceed request
-                                    id = stdout.substring(stdout.indexOf("\"id\"")+6, stdout.indexOf("\"proceedText\"")-2);
-                                    url = `${joburl}${jobnumber}/input/${id}/proceedEmpty`;
-
-                                    xhr = new XMLHttpRequest();
-                                    xhr.open("POST", url, true, userinput, usertoken);
-                                    xhr.withCredentials = true;
-                                    xhr.onreadystatechange = async function () {
-                                        if (xhr.readyState === 4) {
-                                            if(xhr.status != "201" && xhr.status != "200"){
-                                                for (const conversationReference of Object.values(conversationReferences)) {
-                                                    await adapter.continueConversation(conversationReference, async turnContext => {
-                                                        await turnContext.sendActivity("Request not approved."+"\n\n"+"Incorrect username or token.");
-                                                        fs.writeFileSync('job_next.txt', "", 'utf8');
-                                                    });
-                                                }
-                                            }else{
-                                                //removes approved link from list
-                                                amtRem = 0;
-                                                editeddata = data.split('\n');
-                                                lineRemove = lineFinder(editeddata, jobname);
-
-                                                while(amtRem < 6){
-                                                    editeddata.splice(lineRemove, 1);
-                                                    amtRem++;
-                                                }
-
-                                                for(var i = 0; i < editeddata.length - 1; i++){
-                                                    newdata = newdata + editeddata[i] + "\n";
-                                                }
-                                                        
-                                                //puts new list into file
-                                                fs.writeFileSync('link.txt', newdata, 'utf-8');
-                                    
-                                                fs.writeFileSync('job_next.txt', "", 'utf8');
-
-                                                for (const conversationReference of Object.values(conversationReferences)) {
-                                                    await adapter.continueConversation(conversationReference, async turnContext => {
-                                                        await turnContext.sendActivity(`${jobname} has been approved.`);
-                                                    });
-                                                }
-                                            }       
+                                            for (const conversationReference of Object.values(conversationReferences)) {
+                                                await adapter.continueConversation(conversationReference, async turnContext => {
+                                                    await turnContext.sendActivity(`${jobname} has been built.`);
+                                                });
                                         }
                                     }
-                                    xhr.send();
+                                    });
                                 }
                             }
-                        }
+                        };
                         xhr.send();
                     }
                 }else{
@@ -324,7 +241,7 @@ class EchoBot extends ActivityHandler {
 //finds which line the job is on in file
 function lineFinder(array, jobname){
     for(var i = 0; i < array.length; i++){
-        if((" - JOB NAME:  " + jobname) === array[i]){
+        if((" - JOB NAME: " + jobname) === array[i]){
             return i;
         }
     }

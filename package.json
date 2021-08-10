@@ -16,18 +16,13 @@
         "url": "https://github.com"
     },
     "dependencies": {
-        "adaptivecards": "^2.9.0",
-        "adaptivecards-designer": "^2.2.0",
-        "adaptivecards-fluentui": "^0.5.3",
         "botbuilder": "~4.11.0",
         "dotenv": "^8.2.0",
         "es6-promise": "^4.2.8",
         "express": "^4.17.1",
-        "html-to-text": "^8.0.0",
         "isomorphic-fetch": "^3.0.0",
         "open": "^8.2.1",
-        "restify": "~8.5.1",
-        "xmlhttprequest": "^1.8.0"
+        "restify": "~8.5.1"
     },
     "devDependencies": {
         "eslint": "^7.0.0",
